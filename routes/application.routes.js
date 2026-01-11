@@ -1,29 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const { 
-  applyForJob, 
-  getMyApplications, 
-  getJobApplications, 
-  updateApplicationStatus,
-  getApplicationById,
-  getAllEmployerApplications
-} = require('../controllers/application.controller');
 const { verifyToken, isJobSeeker, isEmployer } = require('../middleware/auth.middleware');
-const upload = require('../middleware/upload.middleware');
+const {
+  submitApplication,
+  getMyApplications,
+  getApplicationById,
+  getJobApplications,
+  updateApplicationStatus,
+  withdrawApplication,
+  getEmployerApplications
+} = require('../controllers/application.controller');
 
-// All routes are protected
-router.use(verifyToken);
-
-// Job seeker routes
-router.post('/', isJobSeeker, upload.single('resume'), applyForJob);
-router.get('/my-applications', isJobSeeker, getMyApplications);
+// Job Seeker routes
+router.post('/', verifyToken, isJobSeeker, submitApplication);
+router.get('/my-applications', verifyToken, isJobSeeker, getMyApplications);
+router.delete('/:id', verifyToken, isJobSeeker, withdrawApplication);
 
 // Employer routes
-router.get('/job/:jobId', isEmployer, getJobApplications);
-router.put('/:id/status', isEmployer, updateApplicationStatus);
-router.get('/employer/all', isEmployer, getAllEmployerApplications);
+router.get('/employer/all', verifyToken, isEmployer, getEmployerApplications);
+router.get('/job/:jobId', verifyToken, isEmployer, getJobApplications);
+router.put('/:id/status', verifyToken, isEmployer, updateApplicationStatus);
 
-// Shared route
-router.get('/:id', getApplicationById);
+// Shared routes (both job seeker and employer can view)
+router.get('/:id', verifyToken, getApplicationById);
 
 module.exports = router;

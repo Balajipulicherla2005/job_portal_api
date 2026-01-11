@@ -1,9 +1,10 @@
-const Job = require('../models/Job.model');
+const { Job, User, EmployerProfile } = require('../models');
+const { Op } = require('sequelize');
 const { createJobSchema, updateJobSchema } = require('../validators/job.validator');
 
-// @desc    Create a new job listing
+// @desc    Create a new job
 // @route   POST /api/jobs
-// @access  Private (Employer only)
+// @access  Private (Employer)
 const createJob = async (req, res) => {
   try {
     // Validate request body
@@ -15,12 +16,39 @@ const createJob = async (req, res) => {
       });
     }
 
-    const jobData = {
-      ...req.body,
-      employer: req.user._id
-    };
+    const {
+      title,
+      description,
+      qualifications,
+      responsibilities,
+      jobType,
+      location,
+      salaryMin,
+      salaryMax,
+      salaryPeriod,
+      experienceLevel,
+      skills,
+      benefits,
+      applicationDeadline
+    } = req.body;
 
-    const job = await Job.create(jobData);
+    const job = await Job.create({
+      employerId: req.user.id,
+      title,
+      description,
+      qualifications,
+      responsibilities,
+      jobType: jobType || 'full-time',
+      location,
+      salaryMin,
+      salaryMax,
+      salaryPeriod: salaryPeriod || 'yearly',
+      experienceLevel,
+      skills: skills || [],
+      benefits,
+      status: 'active',
+      applicationDeadline: applicationDeadline ? new Date(applicationDeadline) : null
+    });
 
     res.status(201).json({
       success: true,
@@ -37,78 +65,81 @@ const createJob = async (req, res) => {
   }
 };
 
-// @desc    Get all jobs with search and filters
+// @desc    Get all jobs (public)
 // @route   GET /api/jobs
 // @access  Public
 const getAllJobs = async (req, res) => {
   try {
     const { 
-      keyword, 
-      location, 
-      jobType, 
-      minSalary, 
-      maxSalary,
       page = 1, 
-      limit = 10 
+      limit = 10, 
+      status = 'active',
+      jobType,
+      location,
+      experienceLevel,
+      search
     } = req.query;
 
-    // Build query
-    let query = { isActive: true };
-
-    // Text search on title, description, location
-    if (keyword) {
-      query.$text = { $search: keyword };
-    }
-
-    // Location filter
-    if (location) {
-      query.location = { $regex: location, $options: 'i' };
-    }
-
-    // Job type filter
+    const offset = (page - 1) * limit;
+    
+    // Build where clause
+    const where = { status };
+    
     if (jobType) {
-      query.jobType = jobType;
+      where.jobType = jobType;
+    }
+    
+    if (location) {
+      where.location = { [Op.like]: `%${location}%` };
+    }
+    
+    if (experienceLevel) {
+      where.experienceLevel = experienceLevel;
+    }
+    
+    if (search) {
+      where[Op.or] = [
+        { title: { [Op.like]: `%${search}%` } },
+        { description: { [Op.like]: `%${search}%` } }
+      ];
     }
 
-    // Salary range filter
-    if (minSalary || maxSalary) {
-      query['salaryRange.min'] = {};
-      if (minSalary) {
-        query['salaryRange.min'].$gte = parseInt(minSalary);
-      }
-      if (maxSalary) {
-        query['salaryRange.max'] = { $lte: parseInt(maxSalary) };
-      }
-    }
-
-    // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Execute query
-    const jobs = await Job.find(query)
-      .populate('employer', 'companyName companyLogo email')
-      .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(skip);
-
-    // Get total count
-    const total = await Job.countDocuments(query);
+    const { count, rows } = await Job.findAndCountAll({
+      where,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: User,
+          as: 'employer',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: EmployerProfile,
+              as: 'employerProfile',
+              attributes: ['companyName', 'companyWebsite', 'location', 'industry']
+            }
+          ]
+        }
+      ]
+    });
 
     res.status(200).json({
       success: true,
-      data: jobs,
+      data: rows,
       pagination: {
+        total: count,
         page: parseInt(page),
         limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(count / limit)
       }
     });
   } catch (error) {
-    console.error('Get jobs error:', error);
+    console.error('Get all jobs error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error getting jobs',
+      message: 'Error fetching jobs',
       error: error.message
     });
   }
@@ -119,8 +150,22 @@ const getAllJobs = async (req, res) => {
 // @access  Public
 const getJobById = async (req, res) => {
   try {
-    const job = await Job.findById(req.params.id)
-      .populate('employer', 'companyName companyDescription companyLogo companyWebsite email phone');
+    const job = await Job.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'employer',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: EmployerProfile,
+              as: 'employerProfile',
+              attributes: ['companyName', 'companyWebsite', 'companySize', 'industry', 'location', 'description']
+            }
+          ]
+        }
+      ]
+    });
 
     if (!job) {
       return res.status(404).json({
@@ -134,18 +179,64 @@ const getJobById = async (req, res) => {
       data: job
     });
   } catch (error) {
-    console.error('Get job error:', error);
+    console.error('Get job by ID error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error getting job',
+      message: 'Error fetching job',
       error: error.message
     });
   }
 };
 
-// @desc    Update job listing
+// @desc    Get jobs by employer
+// @route   GET /api/jobs/employer/my-jobs
+// @access  Private (Employer)
+const getEmployerJobs = async (req, res) => {
+  try {
+    const { status } = req.query;
+    
+    const where = { employerId: req.user.id };
+    if (status) {
+      where.status = status;
+    }
+
+    const jobs = await Job.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: User,
+          as: 'employer',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: EmployerProfile,
+              as: 'employerProfile',
+              attributes: ['companyName']
+            }
+          ]
+        }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: jobs,
+      count: jobs.length
+    });
+  } catch (error) {
+    console.error('Get employer jobs error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching jobs',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Update job
 // @route   PUT /api/jobs/:id
-// @access  Private (Employer only - own jobs)
+// @access  Private (Employer)
 const updateJob = async (req, res) => {
   try {
     // Validate request body
@@ -157,7 +248,7 @@ const updateJob = async (req, res) => {
       });
     }
 
-    const job = await Job.findById(req.params.id);
+    const job = await Job.findByPk(req.params.id);
 
     if (!job) {
       return res.status(404).json({
@@ -166,20 +257,65 @@ const updateJob = async (req, res) => {
       });
     }
 
-    // Check if user is the job owner
-    if (job.employer.toString() !== req.user._id.toString()) {
+    // Check if user owns the job
+    if (job.employerId !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this job'
       });
     }
 
-    // Update job
-    const updatedJob = await Job.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true }
-    );
+    const {
+      title,
+      description,
+      qualifications,
+      responsibilities,
+      jobType,
+      location,
+      salaryMin,
+      salaryMax,
+      salaryPeriod,
+      experienceLevel,
+      skills,
+      benefits,
+      status,
+      applicationDeadline
+    } = req.body;
+
+    await job.update({
+      title: title || job.title,
+      description: description || job.description,
+      qualifications: qualifications !== undefined ? qualifications : job.qualifications,
+      responsibilities: responsibilities !== undefined ? responsibilities : job.responsibilities,
+      jobType: jobType || job.jobType,
+      location: location || job.location,
+      salaryMin: salaryMin !== undefined ? salaryMin : job.salaryMin,
+      salaryMax: salaryMax !== undefined ? salaryMax : job.salaryMax,
+      salaryPeriod: salaryPeriod || job.salaryPeriod,
+      experienceLevel: experienceLevel !== undefined ? experienceLevel : job.experienceLevel,
+      skills: skills !== undefined ? skills : job.skills,
+      benefits: benefits !== undefined ? benefits : job.benefits,
+      status: status || job.status,
+      applicationDeadline: applicationDeadline ? new Date(applicationDeadline) : job.applicationDeadline
+    });
+
+    // Fetch updated job with employer details
+    const updatedJob = await Job.findByPk(job.id, {
+      include: [
+        {
+          model: User,
+          as: 'employer',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: EmployerProfile,
+              as: 'employerProfile',
+              attributes: ['companyName']
+            }
+          ]
+        }
+      ]
+    });
 
     res.status(200).json({
       success: true,
@@ -196,12 +332,12 @@ const updateJob = async (req, res) => {
   }
 };
 
-// @desc    Delete job listing
+// @desc    Delete job
 // @route   DELETE /api/jobs/:id
-// @access  Private (Employer only - own jobs)
+// @access  Private (Employer)
 const deleteJob = async (req, res) => {
   try {
-    const job = await Job.findById(req.params.id);
+    const job = await Job.findByPk(req.params.id);
 
     if (!job) {
       return res.status(404).json({
@@ -210,15 +346,15 @@ const deleteJob = async (req, res) => {
       });
     }
 
-    // Check if user is the job owner
-    if (job.employer.toString() !== req.user._id.toString()) {
+    // Check if user owns the job
+    if (job.employerId !== req.user.id) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to delete this job'
       });
     }
 
-    await Job.findByIdAndDelete(req.params.id);
+    await job.destroy();
 
     res.status(200).json({
       success: true,
@@ -234,33 +370,11 @@ const deleteJob = async (req, res) => {
   }
 };
 
-// @desc    Get employer's own jobs
-// @route   GET /api/jobs/employer/my-jobs
-// @access  Private (Employer only)
-const getMyJobs = async (req, res) => {
-  try {
-    const jobs = await Job.find({ employer: req.user._id })
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      data: jobs
-    });
-  } catch (error) {
-    console.error('Get my jobs error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error getting jobs',
-      error: error.message
-    });
-  }
-};
-
 module.exports = {
   createJob,
   getAllJobs,
   getJobById,
+  getEmployerJobs,
   updateJob,
-  deleteJob,
-  getMyJobs
+  deleteJob
 };

@@ -1,10 +1,9 @@
-const Application = require('../models/Application.model');
-const Job = require('../models/Job.model');
+const { Application, Job, User, JobSeekerProfile } = require('../models');
 
-// @desc    Apply for a job
+// @desc    Submit job application
 // @route   POST /api/applications
-// @access  Private (Job Seeker only)
-const applyForJob = async (req, res) => {
+// @access  Private (Job Seeker)
+const submitApplication = async (req, res) => {
   try {
     const { jobId, coverLetter } = req.body;
 
@@ -16,7 +15,7 @@ const applyForJob = async (req, res) => {
     }
 
     // Check if job exists
-    const job = await Job.findById(jobId);
+    const job = await Job.findByPk(jobId);
     if (!job) {
       return res.status(404).json({
         success: false,
@@ -24,17 +23,28 @@ const applyForJob = async (req, res) => {
       });
     }
 
-    if (!job.isActive) {
+    // Check if job is still active
+    if (job.status !== 'active') {
       return res.status(400).json({
         success: false,
         message: 'This job is no longer accepting applications'
       });
     }
 
+    // Check if deadline has passed
+    if (job.applicationDeadline && new Date(job.applicationDeadline) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Application deadline has passed'
+      });
+    }
+
     // Check if already applied
     const existingApplication = await Application.findOne({
-      job: jobId,
-      jobSeeker: req.user._id
+      where: {
+        jobId,
+        jobSeekerId: req.user.id
+      }
     });
 
     if (existingApplication) {
@@ -45,35 +55,43 @@ const applyForJob = async (req, res) => {
     }
 
     // Create application
-    const applicationData = {
-      job: jobId,
-      jobSeeker: req.user._id,
-      coverLetter,
-      resume: req.user.resume // Use profile resume by default
-    };
-
-    // If a new resume is uploaded with the application
-    if (req.file) {
-      applicationData.resume = `/uploads/resumes/${req.file.filename}`;
-    }
-
-    const application = await Application.create(applicationData);
-
-    // Increment application count on job
-    await Job.findByIdAndUpdate(jobId, {
-      $inc: { applicationCount: 1 }
+    const application = await Application.create({
+      jobId,
+      jobSeekerId: req.user.id,
+      coverLetter: coverLetter || '',
+      status: 'pending'
     });
 
-    // Populate the application before sending response
-    await application.populate('job', 'title location jobType');
+    // Fetch complete application with job and profile details
+    const completeApplication = await Application.findByPk(application.id, {
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['id', 'title', 'location', 'jobType']
+        },
+        {
+          model: User,
+          as: 'jobSeeker',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: JobSeekerProfile,
+              as: 'jobSeekerProfile',
+              attributes: ['fullName', 'phone', 'location']
+            }
+          ]
+        }
+      ]
+    });
 
     res.status(201).json({
       success: true,
       message: 'Application submitted successfully',
-      data: application
+      data: completeApplication
     });
   } catch (error) {
-    console.error('Apply for job error:', error);
+    console.error('Submit application error:', error);
     res.status(500).json({
       success: false,
       message: 'Error submitting application',
@@ -84,138 +102,94 @@ const applyForJob = async (req, res) => {
 
 // @desc    Get job seeker's applications
 // @route   GET /api/applications/my-applications
-// @access  Private (Job Seeker only)
+// @access  Private (Job Seeker)
 const getMyApplications = async (req, res) => {
   try {
-    const applications = await Application.find({ jobSeeker: req.user._id })
-      .populate('job', 'title location jobType salaryRange createdAt')
-      .populate('job.employer', 'companyName')
-      .sort({ createdAt: -1 });
+    const { status } = req.query;
+
+    const where = { jobSeekerId: req.user.id };
+    if (status) {
+      where.status = status;
+    }
+
+    const applications = await Application.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['id', 'title', 'location', 'jobType', 'salaryMin', 'salaryMax', 'salaryPeriod'],
+          include: [
+            {
+              model: User,
+              as: 'employer',
+              attributes: ['id', 'email'],
+              include: [
+                {
+                  model: require('../models').EmployerProfile,
+                  as: 'employerProfile',
+                  attributes: ['companyName', 'location']
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
 
     res.status(200).json({
       success: true,
-      data: applications
+      data: applications,
+      count: applications.length
     });
   } catch (error) {
     console.error('Get my applications error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error getting applications',
+      message: 'Error fetching applications',
       error: error.message
     });
   }
 };
 
-// @desc    Get applications for a specific job
-// @route   GET /api/applications/job/:jobId
-// @access  Private (Employer only - own jobs)
-const getJobApplications = async (req, res) => {
-  try {
-    const { jobId } = req.params;
-
-    // Check if job exists and belongs to employer
-    const job = await Job.findById(jobId);
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        message: 'Job not found'
-      });
-    }
-
-    if (job.employer.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view these applications'
-      });
-    }
-
-    const applications = await Application.find({ job: jobId })
-      .populate('jobSeeker', 'firstName lastName email phone resume skills experience education')
-      .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      data: applications
-    });
-  } catch (error) {
-    console.error('Get job applications error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error getting applications',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Update application status
-// @route   PUT /api/applications/:id/status
-// @access  Private (Employer only)
-const updateApplicationStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, notes } = req.body;
-
-    if (!status) {
-      return res.status(400).json({
-        success: false,
-        message: 'Status is required'
-      });
-    }
-
-    const validStatuses = ['pending', 'reviewing', 'shortlisted', 'rejected', 'accepted'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status'
-      });
-    }
-
-    const application = await Application.findById(id).populate('job');
-    
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        message: 'Application not found'
-      });
-    }
-
-    // Check if user is the job owner
-    if (application.job.employer.toString() !== req.user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this application'
-      });
-    }
-
-    application.status = status;
-    if (notes) application.notes = notes;
-    
-    await application.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Application status updated successfully',
-      data: application
-    });
-  } catch (error) {
-    console.error('Update application status error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error updating application status',
-      error: error.message
-    });
-  }
-};
-
-// @desc    Get single application details
+// @desc    Get single application by ID
 // @route   GET /api/applications/:id
-// @access  Private
+// @access  Private (Job Seeker or Employer who owns the job)
 const getApplicationById = async (req, res) => {
   try {
-    const application = await Application.findById(req.params.id)
-      .populate('job', 'title description qualifications responsibilities location jobType salaryRange')
-      .populate('jobSeeker', 'firstName lastName email phone resume skills experience education')
-      .populate('job.employer', 'companyName companyLogo email');
+    const application = await Application.findByPk(req.params.id, {
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          include: [
+            {
+              model: User,
+              as: 'employer',
+              attributes: ['id', 'email'],
+              include: [
+                {
+                  model: require('../models').EmployerProfile,
+                  as: 'employerProfile'
+                }
+              ]
+            }
+          ]
+        },
+        {
+          model: User,
+          as: 'jobSeeker',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: JobSeekerProfile,
+              as: 'jobSeekerProfile'
+            }
+          ]
+        }
+      ]
+    });
 
     if (!application) {
       return res.status(404).json({
@@ -224,9 +198,9 @@ const getApplicationById = async (req, res) => {
       });
     }
 
-    // Check authorization
-    const isJobSeeker = application.jobSeeker._id.toString() === req.user._id.toString();
-    const isEmployer = application.job.employer._id.toString() === req.user._id.toString();
+    // Check authorization: job seeker who applied or employer who owns the job
+    const isJobSeeker = req.user.role === 'jobseeker' && application.jobSeekerId === req.user.id;
+    const isEmployer = req.user.role === 'employer' && application.job.employerId === req.user.id;
 
     if (!isJobSeeker && !isEmployer) {
       return res.status(403).json({
@@ -240,49 +214,270 @@ const getApplicationById = async (req, res) => {
       data: application
     });
   } catch (error) {
-    console.error('Get application error:', error);
+    console.error('Get application by ID error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error getting application',
+      message: 'Error fetching application',
       error: error.message
     });
   }
 };
 
-// @desc    Get all applications for employer's jobs
-// @route   GET /api/applications/employer/all
-// @access  Private (Employer only)
-const getAllEmployerApplications = async (req, res) => {
+// @desc    Get applications for a specific job
+// @route   GET /api/applications/job/:jobId
+// @access  Private (Employer who owns the job)
+const getJobApplications = async (req, res) => {
   try {
-    // Get all jobs by employer
-    const employerJobs = await Job.find({ employer: req.user._id }).select('_id');
-    const jobIds = employerJobs.map(job => job._id);
+    const { jobId } = req.params;
+    const { status } = req.query;
 
-    // Get all applications for these jobs
-    const applications = await Application.find({ job: { $in: jobIds } })
-      .populate('job', 'title location jobType')
-      .populate('jobSeeker', 'firstName lastName email phone')
-      .sort({ createdAt: -1 });
+    // Check if job exists and user owns it
+    const job = await Job.findByPk(jobId);
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
+    }
+
+    if (job.employerId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view applications for this job'
+      });
+    }
+
+    const where = { jobId };
+    if (status) {
+      where.status = status;
+    }
+
+    const applications = await Application.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: User,
+          as: 'jobSeeker',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: JobSeekerProfile,
+              as: 'jobSeekerProfile',
+              attributes: ['fullName', 'phone', 'location', 'skills', 'experience', 'resumePath']
+            }
+          ]
+        }
+      ]
+    });
 
     res.status(200).json({
       success: true,
-      data: applications
+      data: applications,
+      count: applications.length
     });
   } catch (error) {
-    console.error('Get all employer applications error:', error);
+    console.error('Get job applications error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error getting applications',
+      message: 'Error fetching applications',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Update application status
+// @route   PUT /api/applications/:id/status
+// @access  Private (Employer who owns the job)
+const updateApplicationStatus = async (req, res) => {
+  try {
+    const { status, notes } = req.body;
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status is required'
+      });
+    }
+
+    const validStatuses = ['pending', 'reviewing', 'shortlisted', 'rejected', 'accepted'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Status must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const application = await Application.findByPk(req.params.id, {
+      include: [
+        {
+          model: Job,
+          as: 'job'
+        }
+      ]
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      });
+    }
+
+    // Check if user owns the job
+    if (application.job.employerId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this application'
+      });
+    }
+
+    await application.update({
+      status,
+      notes: notes || application.notes
+    });
+
+    // Fetch updated application with complete details
+    const updatedApplication = await Application.findByPk(application.id, {
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['id', 'title']
+        },
+        {
+          model: User,
+          as: 'jobSeeker',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: JobSeekerProfile,
+              as: 'jobSeekerProfile',
+              attributes: ['fullName']
+            }
+          ]
+        }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Application status updated successfully',
+      data: updatedApplication
+    });
+  } catch (error) {
+    console.error('Update application status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating application',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Withdraw application
+// @route   DELETE /api/applications/:id
+// @access  Private (Job Seeker who submitted the application)
+const withdrawApplication = async (req, res) => {
+  try {
+    const application = await Application.findByPk(req.params.id);
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      });
+    }
+
+    // Check if user owns the application
+    if (application.jobSeekerId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to withdraw this application'
+      });
+    }
+
+    await application.destroy();
+
+    res.status(200).json({
+      success: true,
+      message: 'Application withdrawn successfully'
+    });
+  } catch (error) {
+    console.error('Withdraw application error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error withdrawing application',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Get all applications for employer (across all jobs)
+// @route   GET /api/applications/employer/all
+// @access  Private (Employer)
+const getEmployerApplications = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    // Get all jobs by this employer
+    const jobs = await Job.findAll({
+      where: { employerId: req.user.id },
+      attributes: ['id']
+    });
+
+    const jobIds = jobs.map(job => job.id);
+
+    const where = { jobId: jobIds };
+    if (status) {
+      where.status = status;
+    }
+
+    const applications = await Application.findAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['id', 'title', 'location']
+        },
+        {
+          model: User,
+          as: 'jobSeeker',
+          attributes: ['id', 'email'],
+          include: [
+            {
+              model: JobSeekerProfile,
+              as: 'jobSeekerProfile',
+              attributes: ['fullName', 'phone', 'location']
+            }
+          ]
+        }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: applications,
+      count: applications.length
+    });
+  } catch (error) {
+    console.error('Get employer applications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching applications',
       error: error.message
     });
   }
 };
 
 module.exports = {
-  applyForJob,
+  submitApplication,
   getMyApplications,
+  getApplicationById,
   getJobApplications,
   updateApplicationStatus,
-  getApplicationById,
-  getAllEmployerApplications
+  withdrawApplication,
+  getEmployerApplications
 };

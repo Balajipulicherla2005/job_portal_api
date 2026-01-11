@@ -30,7 +30,7 @@ const Application = sequelize.define('applications', {
     allowNull: true
   },
   status: {
-    type: DataTypes.ENUM('pending', 'reviewed', 'shortlisted', 'rejected', 'accepted'),
+    type: DataTypes.ENUM('pending', 'reviewing', 'shortlisted', 'rejected', 'accepted'),
     defaultValue: 'pending'
   },
   notes: {
