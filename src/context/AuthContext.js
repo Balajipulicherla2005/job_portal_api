@@ -35,39 +35,57 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
-    const response = await api.post('/auth/login', { email, password });
-    const { token, user } = response.data.data;
-    localStorage.setItem('token', token);
-    setUser(user);
-    return user;
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      const { token, user } = response.data.data;
+      localStorage.setItem('token', token);
+      setUser(user);
+      return { success: true, user };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.message || 'Login failed' 
+      };
+    }
   };
 
   const register = async (userData) => {
-    // Map frontend fields to backend fields
-    const backendData = {
-      email: userData.email,
-      password: userData.password,
-      role: userData.user_type === 'job_seeker' ? 'jobseeker' : 'employer', // Map job_seeker to jobseeker
-    };
-
-    // Add role-specific fields
-    if (userData.user_type === 'job_seeker') {
+    try {
       // Split name into firstName and lastName
       const nameParts = (userData.name || '').trim().split(' ');
-      backendData.firstName = nameParts[0] || '';
-      backendData.lastName = nameParts.slice(1).join(' ') || '';
-      backendData.phone = userData.phone || '';
-    } else if (userData.user_type === 'employer') {
-      backendData.companyName = userData.company_name || '';
-      backendData.companyDescription = userData.company_description || '';
-      backendData.phone = userData.phone || '';
-    }
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || nameParts[0] || 'User';
 
-    const response = await api.post('/auth/register', backendData);
-    const { token, user } = response.data.data;
-    localStorage.setItem('token', token);
-    setUser(user);
-    return user;
+      // Map frontend fields to backend fields
+      const backendData = {
+        email: userData.email,
+        password: userData.password,
+        role: userData.userType, // 'jobseeker' or 'employer'
+        firstName: firstName,
+        lastName: lastName,
+        phone: userData.phone || ''
+      };
+
+      if (userData.userType === 'employer') {
+        backendData.companyName = userData.companyName;
+        backendData.companyDescription = userData.companyDescription;
+      }
+
+      console.log('Sending registration data:', backendData);
+
+      const response = await api.post('/auth/register', backendData);
+      const { token, user } = response.data.data;
+      localStorage.setItem('token', token);
+      setUser(user);
+      return { success: true, user };
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.message || error.response?.data?.error || 'Registration failed' 
+      };
+    }
   };
 
   const logout = () => {
@@ -88,3 +106,5 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
+
+export { AuthContext };

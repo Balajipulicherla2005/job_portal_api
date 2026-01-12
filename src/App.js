@@ -28,6 +28,7 @@ import EditJob from './pages/EditJob';
 import MyJobs from './pages/MyJobs';
 import MyApplications from './pages/MyApplications';
 import JobApplications from './pages/JobApplications';
+import NotificationsPage from './pages/NotificationsPage';
 
 function App() {
   const { loading } = useAuth();
@@ -71,6 +72,16 @@ function App() {
               element={
                 <PrivateRoute userType="jobseeker">
                   <MyApplications />
+                </PrivateRoute>
+              }
+            />
+
+            {/* Notifications Route - All Authenticated Users */}
+            <Route
+              path="/notifications"
+              element={
+                <PrivateRoute>
+                  <NotificationsPage />
                 </PrivateRoute>
               }
             />

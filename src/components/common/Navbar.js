@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from '../NotificationBell';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -103,6 +104,10 @@ const Navbar = () => {
                   </li>
                 </>
               )}
+
+              <li className="navbar-item">
+                <NotificationBell />
+              </li>
 
               <li className="navbar-item">
                 <span className="navbar-user">Hello, {user?.name || user?.email}</span>

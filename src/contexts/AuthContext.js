@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     isAuthenticated: !!user,
-    isJobSeeker: user?.role === 'job_seeker',
+    isJobSeeker: user?.role === 'jobseeker',
     isEmployer: user?.role === 'employer',
   };
 

@@ -16,7 +16,7 @@ const DashboardPage = () => {
 
   const fetchDashboardData = async () => {
     try {
-      if (user.role === 'job_seeker') {
+      if (user.role === 'jobseeker') {
         const [statsRes, applicationsRes] = await Promise.all([
           dashboardAPI.getJobSeekerStats(),
           applicationAPI.getMyApplications({ limit: 5 }),
@@ -52,13 +52,13 @@ const DashboardPage = () => {
             Welcome back, {user.firstName}!
           </h1>
           <p className="dashboard-subtitle">
-            {user.role === 'job_seeker' 
+            {user.role === 'jobseeker' 
               ? 'Track your job applications and find new opportunities'
               : 'Manage your job postings and review applications'}
           </p>
         </div>
 
-        {user.role === 'job_seeker' ? (
+        {user.role === 'jobseeker' ? (
           <JobSeekerDashboard stats={stats} applications={recentItems} />
         ) : (
           <EmployerDashboard stats={stats} jobs={recentItems} />

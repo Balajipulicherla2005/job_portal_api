@@ -24,7 +24,8 @@ const JobDetailPage = () => {
   const fetchJobDetails = async () => {
     try {
       const response = await api.get(`/jobs/${id}`);
-      setJob(response.data);
+      console.log('Job details response:', response);
+      setJob(response.data.data);
     } catch (error) {
       console.error('Error fetching job details:', error);
       toast.error('Failed to load job details');
@@ -61,7 +62,7 @@ const JobDetailPage = () => {
 
     setApplying(true);
     try {
-      await api.post(`/applications`, { job_id: id });
+      await api.post(`/applications`, { jobId: id });
       toast.success('Application submitted successfully!');
       setHasApplied(true);
     } catch (error) {
@@ -86,10 +87,10 @@ const JobDetailPage = () => {
         <div className="job-detail-header">
           <div className="job-header-content">
             <h1 className="job-detail-title">{job.title}</h1>
-            <p className="job-detail-company">{job.company_name}</p>
+            <p className="job-detail-company">{job.companyName}</p>
             <div className="job-meta">
               <span className="job-meta-item">📍 {job.location}</span>
-              <span className="job-meta-item">💼 {job.job_type}</span>
+              <span className="job-meta-item">💼 {job.jobType}</span>
               {job.salary_range && (
                 <span className="job-meta-item">💰 {job.salary_range}</span>
               )}

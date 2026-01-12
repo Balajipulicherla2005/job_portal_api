@@ -5,15 +5,15 @@ import { toast } from 'react-toastify';
 import './Auth.css';
 
 const RegisterPage = () => {
-  const [userType, setUserType] = useState('job_seeker');
+  const [userType, setUserType] = useState('jobseeker');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
     phone: '',
-    company_name: '',
-    company_description: '',
+    companyName: '',
+    companyDescription: '',
   });
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -46,19 +46,19 @@ const RegisterPage = () => {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        user_type: userType,
+        userType: userType,
         phone: formData.phone,
       };
 
       if (userType === 'employer') {
-        userData.company_name = formData.company_name;
-        userData.company_description = formData.company_description;
+        userData.companyName = formData.companyName;
+        userData.companyDescription = formData.companyDescription;
       }
 
       await register(userData);
       toast.success('Registration successful!');
 
-      if (userType === 'job_seeker') {
+      if (userType === 'jobseeker') {
         navigate('/job-seeker/dashboard');
       } else {
         navigate('/employer/dashboard');
@@ -78,8 +78,8 @@ const RegisterPage = () => {
         <div className="user-type-selector">
           <button
             type="button"
-            className={`type-button ${userType === 'job_seeker' ? 'active' : ''}`}
-            onClick={() => setUserType('job_seeker')}
+            className={`type-button ${userType === 'jobseeker' ? 'active' : ''}`}
+            onClick={() => setUserType('jobseeker')}
           >
             Job Seeker
           </button>
@@ -134,12 +134,12 @@ const RegisterPage = () => {
           {userType === 'employer' && (
             <>
               <div className="form-group">
-                <label htmlFor="company_name">Company Name *</label>
+                <label htmlFor="companyName">Company Name *</label>
                 <input
                   type="text"
-                  id="company_name"
-                  name="company_name"
-                  value={formData.company_name}
+                  id="companyName"
+                  name="companyName"
+                  value={formData.companyName}
                   onChange={handleChange}
                   required
                   placeholder="Enter company name"
@@ -147,11 +147,11 @@ const RegisterPage = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="company_description">Company Description</label>
+                <label htmlFor="companyDescription">Company Description</label>
                 <textarea
-                  id="company_description"
-                  name="company_description"
-                  value={formData.company_description}
+                  id="companyDescription"
+                  name="companyDescription"
+                  value={formData.companyDescription}
                   onChange={handleChange}
                   rows="4"
                   placeholder="Brief description of your company"

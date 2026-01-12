@@ -19,7 +19,9 @@ const HomePage = () => {
   const fetchRecentJobs = async () => {
     try {
       const response = await api.get('/jobs?limit=6');
-      setRecentJobs(response.data.jobs || []);
+      if (response.data.success) {
+        setRecentJobs(response.data.data || []);
+      }
     } catch (error) {
       console.error('Error fetching recent jobs:', error);
     } finally {
@@ -30,7 +32,9 @@ const HomePage = () => {
   const fetchStats = async () => {
     try {
       const response = await api.get('/stats');
-      setStats(response.data);
+      if (response.data.success) {
+        setStats(response.data.data);
+      }
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
@@ -118,11 +122,11 @@ const HomePage = () => {
             {recentJobs.map((job) => (
               <div key={job.id} className="job-card">
                 <h3 className="job-title">{job.title}</h3>
-                <p className="job-company">{job.company_name}</p>
+                <p className="job-company">{job.employer?.employerProfile?.companyName || 'Company'}</p>
                 <p className="job-location">📍 {job.location}</p>
-                <p className="job-type">{job.job_type}</p>
-                {job.salary_range && (
-                  <p className="job-salary">💰 {job.salary_range}</p>
+                <p className="job-type">{job.jobType}</p>
+                {(job.salaryMin && job.salaryMax) && (
+                  <p className="job-salary">💰 ${Number(job.salaryMin).toLocaleString()} - ${Number(job.salaryMax).toLocaleString()}</p>
                 )}
                 <Link to={`/jobs/${job.id}`} className="job-link">
                   View Details

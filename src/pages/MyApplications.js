@@ -90,7 +90,7 @@ const MyApplications = () => {
                     <div className="application-header">
                       <div>
                         <h2 className="application-title">{application.job_title}</h2>
-                        <p className="application-company">{application.company_name}</p>
+                        <p className="application-company">{application.companyName}</p>
                       </div>
                       <span className={`status-badge ${getStatusClass(application.status)}`}>
                         {application.status || 'Pending'}
@@ -113,7 +113,7 @@ const MyApplications = () => {
                     </div>
 
                     <div className="application-footer">
-                      <Link to={`/jobs/${application.job_id}`} className="view-job-button">
+                      <Link to={`/jobs/${application.jobId}`} className="view-job-button">
                         View Job Details
                       </Link>
                     </div>

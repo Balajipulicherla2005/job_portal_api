@@ -11,7 +11,9 @@ const JobListPage = () => {
     search: '',
     jobType: '',
     location: '',
-    experienceLevel: ''
+    experienceLevel: '',
+    minSalary: '',
+    maxSalary: ''
   });
   const [pagination, setPagination] = useState({
     page: 1,
@@ -72,7 +74,9 @@ const JobListPage = () => {
       search: '',
       jobType: '',
       location: '',
-      experienceLevel: ''
+      experienceLevel: '',
+      minSalary: '',
+      maxSalary: ''
     });
     setPagination(prev => ({ ...prev, page: 1 }));
   };
@@ -159,6 +163,26 @@ const JobListPage = () => {
                 <option value="senior">Senior Level</option>
                 <option value="executive">Executive</option>
               </select>
+
+              <input
+                type="number"
+                name="minSalary"
+                placeholder="Min Salary"
+                value={filters.minSalary}
+                onChange={handleFilterChange}
+                className="filter-input"
+                min="0"
+              />
+
+              <input
+                type="number"
+                name="maxSalary"
+                placeholder="Max Salary"
+                value={filters.maxSalary}
+                onChange={handleFilterChange}
+                className="filter-input"
+                min="0"
+              />
 
               <button type="button" onClick={clearFilters} className="clear-button">
                 Clear Filters
