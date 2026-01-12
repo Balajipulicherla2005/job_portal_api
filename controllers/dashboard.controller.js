@@ -1,57 +1,50 @@
 const { User, Job, Application, JobSeekerProfile, EmployerProfile } = require('../models');
-const { sendSuccess, sendError } = require('../utils/functions');
-const { HTTP_STATUS } = require('../config/constants');
 const { Op } = require('sequelize');
 
-/**
- * @route   GET /api/dashboard/job-seeker
- * @desc    Get job seeker dashboard data
- * @access  Private (Job Seeker only)
- */
-exports.getJobSeekerDashboard = async (req, res) => {
+// @desc    Get job seeker dashboard statistics
+// @route   GET /api/dashboard/jobseeker
+// @access  Private (Job Seeker)
+const getJobSeekerDashboard = async (req, res) => {
   try {
-    const jobSeekerId = req.user.id;
+    const userId = req.user.id;
 
-    // Verify user is a job seeker
-    const user = await User.findByPk(jobSeekerId);
-    if (!user || user.role !== 'job_seeker') {
-      return sendError(res, 'Access denied. Job seeker only', HTTP_STATUS.FORBIDDEN);
-    }
-
-    // Get profile completion status
-    const profile = await JobSeekerProfile.findOne({ where: { userId: jobSeekerId } });
-    const profileComplete = profile && profile.fullName && profile.phone && profile.resumePath;
-
-    // Get application statistics
-    const totalApplications = await Application.count({ where: { jobSeekerId } });
-    
-    const pendingApplications = await Application.count({
-      where: { jobSeekerId, status: 'pending' }
+    // Get total applications
+    const totalApplications = await Application.count({
+      where: { jobSeekerId: userId }
     });
 
-    const reviewedApplications = await Application.count({
-      where: { jobSeekerId, status: 'reviewed' }
+    // Get applications by status
+    const applicationsByStatus = await Application.findAll({
+      where: { jobSeekerId: userId },
+      attributes: [
+        'status',
+        [require('sequelize').fn('COUNT', require('sequelize').col('status')), 'count']
+      ],
+      group: ['status']
     });
 
-    const shortlistedApplications = await Application.count({
-      where: { jobSeekerId, status: 'shortlisted' }
+    const statusCounts = {
+      pending: 0,
+      reviewing: 0,
+      shortlisted: 0,
+      rejected: 0,
+      accepted: 0
+    };
+
+    applicationsByStatus.forEach(item => {
+      statusCounts[item.status] = parseInt(item.dataValues.count);
     });
 
-    const acceptedApplications = await Application.count({
-      where: { jobSeekerId, status: 'accepted' }
-    });
-
-    const rejectedApplications = await Application.count({
-      where: { jobSeekerId, status: 'rejected' }
-    });
-
-    // Get recent applications
+    // Get recent applications (last 5)
     const recentApplications = await Application.findAll({
-      where: { jobSeekerId },
+      where: { jobSeekerId: userId },
+      limit: 5,
+      order: [['createdAt', 'DESC']],
       include: [
         {
           model: Job,
           as: 'job',
+          attributes: ['id', 'title', 'location', 'jobType', 'salaryMin', 'salaryMax'],
           include: [
             {
               model: User,
@@ -67,14 +60,27 @@ exports.getJobSeekerDashboard = async (req, res) => {
             }
           ]
         }
-      ],
-      order: [['appliedAt', 'DESC']],
-      limit: 5
+      ]
     });
+
+    // Get profile completion percentage
+    const profile = await JobSeekerProfile.findOne({
+      where: { userId }
+    });
+
+    let profileCompletion = 0;
+    if (profile) {
+      const fields = ['fullName', 'phone', 'location', 'skills', 'experience', 'education', 'resumePath', 'bio'];
+      const completedFields = fields.filter(field => {
+        const value = profile[field];
+        return value !== null && value !== '' && value !== '[]';
+      });
+      profileCompletion = Math.round((completedFields.length / fields.length) * 100);
+    }
 
     // Get recommended jobs (active jobs, not applied)
     const appliedJobIds = await Application.findAll({
-      where: { jobSeekerId },
+      where: { jobSeekerId: userId },
       attributes: ['jobId']
     }).then(apps => apps.map(app => app.jobId));
 
@@ -83,6 +89,8 @@ exports.getJobSeekerDashboard = async (req, res) => {
         status: 'active',
         id: { [Op.notIn]: appliedJobIds.length > 0 ? appliedJobIds : [0] }
       },
+      limit: 5,
+      order: [['createdAt', 'DESC']],
       include: [
         {
           model: User,
@@ -92,127 +100,105 @@ exports.getJobSeekerDashboard = async (req, res) => {
             {
               model: EmployerProfile,
               as: 'employerProfile',
-              attributes: ['companyName', 'location', 'industry']
+              attributes: ['companyName', 'location']
             }
           ]
         }
-      ],
-      order: [['createdAt', 'DESC']],
-      limit: 6
+      ]
     });
 
-    const dashboardData = {
-      profile: {
-        complete: profileComplete,
-        data: profile
-      },
-      statistics: {
-        totalApplications,
-        pendingApplications,
-        reviewedApplications,
-        shortlistedApplications,
-        acceptedApplications,
-        rejectedApplications
-      },
-      recentApplications,
-      recommendedJobs
-    };
-
-    return sendSuccess(res, dashboardData, 'Dashboard data retrieved successfully');
-
+    res.status(200).json({
+      success: true,
+      data: {
+        statistics: {
+          totalApplications,
+          statusCounts,
+          profileCompletion
+        },
+        recentApplications,
+        recommendedJobs
+      }
+    });
   } catch (error) {
     console.error('Get job seeker dashboard error:', error);
-    return sendError(res, error.message || 'Failed to get dashboard data', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching dashboard data',
+      error: error.message
+    });
   }
 };
 
-/**
- * @route   GET /api/dashboard/employer
- * @desc    Get employer dashboard data
- * @access  Private (Employer only)
- */
-exports.getEmployerDashboard = async (req, res) => {
+// @desc    Get employer dashboard statistics
+// @route   GET /api/dashboard/employer
+// @access  Private (Employer)
+const getEmployerDashboard = async (req, res) => {
   try {
-    const employerId = req.user.id;
+    const userId = req.user.id;
 
-    // Verify user is an employer
-    const user = await User.findByPk(employerId);
-    if (!user || user.role !== 'employer') {
-      return sendError(res, 'Access denied. Employer only', HTTP_STATUS.FORBIDDEN);
-    }
-
-    // Get profile completion status
-    const profile = await EmployerProfile.findOne({ where: { userId: employerId } });
-    const profileComplete = profile && profile.companyName && profile.phone && profile.location;
-
-    // Get job statistics
-    const totalJobs = await Job.count({ where: { employerId } });
-    
-    const activeJobs = await Job.count({
-      where: { employerId, status: 'active' }
+    // Get total jobs posted
+    const totalJobs = await Job.count({
+      where: { employerId: userId }
     });
 
-    const closedJobs = await Job.count({
-      where: { employerId, status: 'closed' }
+    // Get jobs by status
+    const jobsByStatus = await Job.findAll({
+      where: { employerId: userId },
+      attributes: [
+        'status',
+        [require('sequelize').fn('COUNT', require('sequelize').col('status')), 'count']
+      ],
+      group: ['status']
     });
 
-    const draftJobs = await Job.count({
-      where: { employerId, status: 'draft' }
+    const jobStatusCounts = {
+      active: 0,
+      closed: 0,
+      draft: 0
+    };
+
+    jobsByStatus.forEach(item => {
+      jobStatusCounts[item.status] = parseInt(item.dataValues.count);
     });
 
-    // Get application statistics
-    const jobs = await Job.findAll({
-      where: { employerId },
+    // Get all job IDs for this employer
+    const jobIds = await Job.findAll({
+      where: { employerId: userId },
       attributes: ['id']
-    });
-    const jobIds = jobs.map(job => job.id);
+    }).then(jobs => jobs.map(job => job.id));
 
+    // Get total applications
     const totalApplications = await Application.count({
-      where: { jobId: { [Op.in]: jobIds.length > 0 ? jobIds : [0] } }
+      where: { jobId: jobIds.length > 0 ? jobIds : [0] }
     });
 
-    const pendingApplications = await Application.count({
-      where: {
-        jobId: { [Op.in]: jobIds.length > 0 ? jobIds : [0] },
-        status: 'pending'
-      }
+    // Get applications by status
+    const applicationsByStatus = await Application.findAll({
+      where: { jobId: jobIds.length > 0 ? jobIds : [0] },
+      attributes: [
+        'status',
+        [require('sequelize').fn('COUNT', require('sequelize').col('status')), 'count']
+      ],
+      group: ['status']
     });
 
-    const reviewedApplications = await Application.count({
-      where: {
-        jobId: { [Op.in]: jobIds.length > 0 ? jobIds : [0] },
-        status: 'reviewed'
-      }
+    const applicationStatusCounts = {
+      pending: 0,
+      reviewing: 0,
+      shortlisted: 0,
+      rejected: 0,
+      accepted: 0
+    };
+
+    applicationsByStatus.forEach(item => {
+      applicationStatusCounts[item.status] = parseInt(item.dataValues.count);
     });
 
-    const shortlistedApplications = await Application.count({
-      where: {
-        jobId: { [Op.in]: jobIds.length > 0 ? jobIds : [0] },
-        status: 'shortlisted'
-      }
-    });
-
-    // Get recent jobs
-    const recentJobs = await Job.findAll({
-      where: { employerId },
-      order: [['createdAt', 'DESC']],
-      limit: 5
-    });
-
-    // Get jobs with application counts
-    const jobsWithApplications = await Promise.all(
-      recentJobs.map(async (job) => {
-        const applicationCount = await Application.count({ where: { jobId: job.id } });
-        return {
-          ...job.toJSON(),
-          applicationCount
-        };
-      })
-    );
-
-    // Get recent applications
+    // Get recent applications (last 5)
     const recentApplications = await Application.findAll({
-      where: { jobId: { [Op.in]: jobIds.length > 0 ? jobIds : [0] } },
+      where: { jobId: jobIds.length > 0 ? jobIds : [0] },
+      limit: 5,
+      order: [['createdAt', 'DESC']],
       include: [
         {
           model: Job,
@@ -231,40 +217,57 @@ exports.getEmployerDashboard = async (req, res) => {
             }
           ]
         }
-      ],
-      order: [['appliedAt', 'DESC']],
-      limit: 10
+      ]
     });
 
-    const dashboardData = {
-      profile: {
-        complete: profileComplete,
-        data: profile
-      },
-      statistics: {
-        jobs: {
-          total: totalJobs,
-          active: activeJobs,
-          closed: closedJobs,
-          draft: draftJobs
+    // Get recent jobs (last 5)
+    const recentJobs = await Job.findAll({
+      where: { employerId: userId },
+      limit: 5,
+      order: [['createdAt', 'DESC']],
+      attributes: ['id', 'title', 'location', 'jobType', 'status', 'createdAt']
+    });
+
+    // Get profile completion
+    const profile = await EmployerProfile.findOne({
+      where: { userId }
+    });
+
+    let profileCompletion = 0;
+    if (profile) {
+      const fields = ['companyName', 'companyWebsite', 'companySize', 'industry', 'location', 'phone', 'description'];
+      const completedFields = fields.filter(field => {
+        const value = profile[field];
+        return value !== null && value !== '';
+      });
+      profileCompletion = Math.round((completedFields.length / fields.length) * 100);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        statistics: {
+          totalJobs,
+          jobStatusCounts,
+          totalApplications,
+          applicationStatusCounts,
+          profileCompletion
         },
-        applications: {
-          total: totalApplications,
-          pending: pendingApplications,
-          reviewed: reviewedApplications,
-          shortlisted: shortlistedApplications
-        }
-      },
-      recentJobs: jobsWithApplications,
-      recentApplications
-    };
-
-    return sendSuccess(res, dashboardData, 'Dashboard data retrieved successfully');
-
+        recentApplications,
+        recentJobs
+      }
+    });
   } catch (error) {
     console.error('Get employer dashboard error:', error);
-    return sendError(res, error.message || 'Failed to get dashboard data', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching dashboard data',
+      error: error.message
+    });
   }
 };
 
-module.exports = exports;
+module.exports = {
+  getJobSeekerDashboard,
+  getEmployerDashboard
+};

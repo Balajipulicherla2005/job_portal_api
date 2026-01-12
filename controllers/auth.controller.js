@@ -23,7 +23,14 @@ const register = async (req, res) => {
       });
     }
 
-    const { email, password, role, firstName, lastName, phone, companyName, companyDescription } = req.body;
+    let { email, password, role, firstName, lastName, name, phone, companyName, companyDescription } = req.body;
+
+    // Handle 'name' field if provided (split into firstName and lastName)
+    if (name && !firstName && !lastName) {
+      const nameParts = name.trim().split(' ');
+      firstName = nameParts[0] || '';
+      lastName = nameParts.slice(1).join(' ') || '';
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
@@ -46,10 +53,10 @@ const register = async (req, res) => {
     // Create profile based on role
     if (role === 'job_seeker' || role === 'jobseeker') {
       // Create job seeker profile
-      const fullName = firstName && lastName ? `${firstName} ${lastName}` : '';
+      const fullName = name || (firstName && lastName ? `${firstName} ${lastName}` : '') || email.split('@')[0];
       await JobSeekerProfile.create({
         userId: user.id,
-        fullName: fullName || email.split('@')[0], // Use email username as fallback
+        fullName,
         phone: phone || null
       });
     } else if (role === 'employer') {

@@ -1,21 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const dashboardController = require('../controllers/dashboard.controller');
-const { protect, authorize } = require('../middleware/auth');
+const { verifyToken, isJobSeeker, isEmployer } = require('../middleware/auth.middleware');
+const {
+  getJobSeekerDashboard,
+  getEmployerDashboard
+} = require('../controllers/dashboard.controller');
 
-// Protected routes
-router.get(
-  '/job-seeker',
-  protect,
-  authorize('job_seeker'),
-  dashboardController.getJobSeekerDashboard
-);
+// Job Seeker dashboard
+router.get('/jobseeker', verifyToken, isJobSeeker, getJobSeekerDashboard);
 
-router.get(
-  '/employer',
-  protect,
-  authorize('employer'),
-  dashboardController.getEmployerDashboard
-);
+// Employer dashboard
+router.get('/employer', verifyToken, isEmployer, getEmployerDashboard);
 
 module.exports = router;

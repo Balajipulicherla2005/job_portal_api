@@ -13,25 +13,24 @@ const registerSchema = Joi.object({
     'any.only': 'Role must be either jobseeker or employer',
     'any.required': 'Role is required'
   }),
-  // Job seeker fields
-  firstName: Joi.string().when('role', {
-    is: 'jobseeker',
-    then: Joi.required(),
-    otherwise: Joi.optional()
-  }),
-  lastName: Joi.string().when('role', {
-    is: 'jobseeker',
-    then: Joi.required(),
-    otherwise: Joi.optional()
-  }),
+  // Accept either name OR firstName/lastName
+  name: Joi.string().optional(),
+  firstName: Joi.string().optional(),
+  lastName: Joi.string().optional(),
   phone: Joi.string().optional(),
   // Employer fields
   companyName: Joi.string().when('role', {
     is: 'employer',
     then: Joi.required(),
     otherwise: Joi.optional()
-  })
-});
+  }),
+  companyDescription: Joi.string().optional(),
+  website: Joi.string().optional(),
+  // Job seeker fields
+  skills: Joi.string().optional(),
+  experience: Joi.string().optional(),
+  education: Joi.string().optional()
+}).unknown(true); // Allow additional fields
 
 const loginSchema = Joi.object({
   email: Joi.string().email().required().messages({

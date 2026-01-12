@@ -77,7 +77,9 @@ const getAllJobs = async (req, res) => {
       jobType,
       location,
       experienceLevel,
-      search
+      search,
+      minSalary,
+      maxSalary
     } = req.query;
 
     const offset = (page - 1) * limit;
@@ -102,6 +104,15 @@ const getAllJobs = async (req, res) => {
         { title: { [Op.like]: `%${search}%` } },
         { description: { [Op.like]: `%${search}%` } }
       ];
+    }
+    
+    // Salary range filters
+    if (minSalary) {
+      where.salaryMax = { [Op.gte]: parseInt(minSalary) };
+    }
+    
+    if (maxSalary) {
+      where.salaryMin = { [Op.lte]: parseInt(maxSalary) };
     }
 
     const { count, rows } = await Job.findAndCountAll({

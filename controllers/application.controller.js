@@ -1,4 +1,5 @@
 const { Application, Job, User, JobSeekerProfile } = require('../models');
+const { notifyApplicationStatusChange, notifyNewApplication } = require('../utils/notificationHelper');
 
 // @desc    Submit job application
 // @route   POST /api/applications
@@ -84,6 +85,9 @@ const submitApplication = async (req, res) => {
         }
       ]
     });
+
+    // Create notification for employer about new application
+    await notifyNewApplication(completeApplication, job.employerId);
 
     res.status(201).json({
       success: true,
@@ -332,10 +336,17 @@ const updateApplicationStatus = async (req, res) => {
       });
     }
 
+    const previousStatus = application.status;
+    
     await application.update({
       status,
       notes: notes || application.notes
     });
+
+    // Create notification for job seeker about status change
+    if (previousStatus !== status) {
+      await notifyApplicationStatusChange(application, previousStatus, status);
+    }
 
     // Fetch updated application with complete details
     const updatedApplication = await Application.findByPk(application.id, {

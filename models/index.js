@@ -4,6 +4,7 @@ const JobSeekerProfile = require('./JobSeekerProfile');
 const EmployerProfile = require('./EmployerProfile');
 const Job = require('./Job.model');
 const Application = require('./Application.model');
+const Notification = require('./Notification.model');
 
 // Define relationships
 // User has one JobSeekerProfile
@@ -61,6 +62,17 @@ Application.belongsTo(User, {
   as: 'jobSeeker'
 });
 
+// User has many Notifications
+User.hasMany(Notification, {
+  foreignKey: 'userId',
+  as: 'notifications',
+  onDelete: 'CASCADE'
+});
+Notification.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user'
+});
+
 // Sync database (creates tables if they don't exist)
 const syncDatabase = async (options = {}) => {
   try {
@@ -79,5 +91,6 @@ module.exports = {
   EmployerProfile,
   Job,
   Application,
+  Notification,
   syncDatabase
 };
