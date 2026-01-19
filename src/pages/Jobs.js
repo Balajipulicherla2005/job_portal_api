@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { jobService } from '../services/api';
 import { toast } from 'react-toastify';
@@ -19,16 +19,16 @@ const Jobs = () => {
     total: 0,
   });
 
-  useEffect(() => {
-    fetchJobs();
-  }, [pagination.page]);
+  // Debounce timer ref
+  const debounceTimerRef = useRef(null);
+  const isInitialMount = useRef(true);
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async (currentFilters, currentPage) => {
     setLoading(true);
     try {
       const params = {
-        ...filters,
-        page: pagination.page,
+        ...currentFilters,
+        page: currentPage,
         limit: 10,
       };
 
@@ -46,30 +46,84 @@ const Jobs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchJobs(filters, pagination.page);
+  }, []);
+
+  // Handle page changes only
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    fetchJobs(filters, pagination.page);
+  }, [pagination.page]);
 
   const handleFilterChange = (e) => {
-    setFilters({
-      ...filters,
-      [e.target.name]: e.target.value,
-    });
+    const { name, value } = e.target;
+    
+    setFilters(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    // Debounce for text inputs
+    if (name === 'keyword' || name === 'location') {
+      // Clear existing timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      // Set new debounce timer - wait 500ms after user stops typing
+      debounceTimerRef.current = setTimeout(() => {
+        const newFilters = {
+          ...filters,
+          [name]: value,
+        };
+        setPagination(prev => ({ ...prev, page: 1 }));
+        fetchJobs(newFilters, 1);
+      }, 500);
+    }
   };
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setPagination({ ...pagination, page: 1 });
-    fetchJobs();
+    // Clear any pending debounce
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    setPagination(prev => ({ ...prev, page: 1 }));
+    fetchJobs(filters, 1);
   };
 
   const handleReset = () => {
-    setFilters({
+    // Clear any pending debounce
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    
+    const clearedFilters = {
       keyword: '',
       location: '',
       jobType: '',
       experienceLevel: '',
-    });
-    setPagination({ ...pagination, page: 1 });
+    };
+    setFilters(clearedFilters);
+    setPagination(prev => ({ ...prev, page: 1 }));
+    fetchJobs(clearedFilters, 1);
   };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const formatSalary = (min, max, period) => {
     if (!min && !max) return 'Salary not specified';
