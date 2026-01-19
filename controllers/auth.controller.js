@@ -41,17 +41,23 @@ const register = async (req, res) => {
       });
     }
 
+    // Normalize role - convert 'job_seeker' to 'jobseeker' for database consistency
+    let normalizedRole = role || 'jobseeker';
+    if (normalizedRole === 'job_seeker') {
+      normalizedRole = 'jobseeker';
+    }
+
     // Create user
     const userData = {
       email,
       password,
-      role: role || 'job_seeker' // Default to job_seeker if not provided
+      role: normalizedRole
     };
 
     const user = await User.create(userData);
 
     // Create profile based on role
-    if (role === 'job_seeker' || role === 'jobseeker') {
+    if (normalizedRole === 'jobseeker') {
       // Create job seeker profile
       const fullName = name || (firstName && lastName ? `${firstName} ${lastName}` : '') || email.split('@')[0];
       await JobSeekerProfile.create({
