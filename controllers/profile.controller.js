@@ -149,13 +149,8 @@ exports.updateJobSeekerProfile = async (req, res) => {
     const userId = req.user.id;
     const { name, phone, location, skills, experience, education, bio } = req.body;
 
-    // Verify user is a job seeker
-    const user = await User.findByPk(userId);
-    if (!user || user.role !== 'job_seeker') {
-      return sendError(res, 'Access denied. Job seeker only', HTTP_STATUS.FORBIDDEN);
-    }
-
     // Find or create profile
+    const user = await User.findByPk(userId);
     let profile = await JobSeekerProfile.findOne({ where: { userId } });
 
     const updateData = {
@@ -218,13 +213,8 @@ exports.updateEmployerProfile = async (req, res) => {
     const userId = req.user.id;
     const { company_name, company_website, company_size, industry, company_location, phone, company_description } = req.body;
 
-    // Verify user is an employer
-    const user = await User.findByPk(userId);
-    if (!user || user.role !== 'employer') {
-      return sendError(res, 'Access denied. Employer only', HTTP_STATUS.FORBIDDEN);
-    }
-
     // Find or create profile
+    const user = await User.findByPk(userId);
     let profile = await EmployerProfile.findOne({ where: { userId } });
 
     const updateData = {
@@ -273,12 +263,6 @@ exports.updateEmployerProfile = async (req, res) => {
 exports.deleteResume = async (req, res) => {
   try {
     const userId = req.user.id;
-
-    // Verify user is a job seeker
-    const user = await User.findByPk(userId);
-    if (!user || user.role !== 'job_seeker') {
-      return sendError(res, 'Access denied. Job seeker only', HTTP_STATUS.FORBIDDEN);
-    }
 
     const profile = await JobSeekerProfile.findOne({ where: { userId } });
     if (!profile || !profile.resumePath) {

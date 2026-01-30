@@ -1,5 +1,4 @@
 const { User, Job, Application } = require('../models');
-const { Op } = require('sequelize');
 
 // @desc    Get platform statistics
 // @route   GET /api/stats

@@ -4,19 +4,37 @@ Backend API for the Job Listing Portal built with Node.js, Express, and MySQL.
 
 ## Features
 
-- User authentication (JWT-based)
-- Role-based access control (Job Seekers and Employers)
-- Profile management for both roles
-- Job CRUD operations
-- Advanced job search with filters
-- Job application system
-- Resume upload for job seekers
-- Application status management
+- **User Authentication**: JWT-based secure authentication
+- **Role-based Access Control**: Separate functionality for Job Seekers and Employers
+- **Profile Management**: Complete profiles for both job seekers and employers
+- **Job Listings**: Create, edit, delete job postings with detailed information
+- **Job Search**: Advanced search with filters (type, location, salary, keyword)
+- **Job Applications**: Apply for jobs, track applications, manage candidates
+- **Resume Upload**: Job seekers can upload and manage resumes
+- **Dashboards**: Separate dashboards for job seekers and employers
+- **Notifications**: Real-time notifications for application status updates
+
+## Project Structure
+
+```
+job_portal_api/
+├── config/            # Configuration constants
+├── controllers/       # Request handlers
+├── middleware/        # Auth and validation middleware
+├── routes/            # API route definitions
+├── utils/             # Utility functions
+├── validators/        # Input validation
+├── uploads/           # Uploaded files (resumes)
+├── aiven-certs/       # SSL certificates for cloud DB
+├── db.js              # Database connection pool
+├── server.js          # Application entry point
+└── DATABASE_SCHEMA.sql # Database schema
+```
 
 ## Prerequisites
 
 - Node.js (v14 or higher)
-- MySQL (v5.7 or higher)
+- MySQL (v5.7 or higher) or Aiven Cloud MySQL
 - npm or yarn
 
 ## Installation
@@ -26,124 +44,100 @@ Backend API for the Job Listing Portal built with Node.js, Express, and MySQL.
 npm install
 ```
 
-2. Create a MySQL database:
-```sql
-CREATE DATABASE job_portal;
+2. Create MySQL database and run schema:
+```bash
+# Option 1: Use setup script
+node setup-database.js
+
+# Option 2: Manual setup
+mysql -u root -p < DATABASE_SCHEMA.sql
 ```
 
 3. Configure environment variables:
-Copy `.env.example` to `.env` and update the values:
-```
-PORT=5000
+Copy `.env.example` to `.env` and update:
+```env
+PORT=5002
 DB_HOST=localhost
 DB_USER=root
 DB_PASSWORD=your_password
 DB_NAME=job_portal
 DB_PORT=3306
+DB_SSL=false
 JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRE=30d
 NODE_ENV=development
+CORS_ORIGIN=http://localhost:3000
 ```
 
 4. Start the server:
 ```bash
-# Development mode with auto-reload
+# Development mode
 npm run dev
 
 # Production mode
 npm start
 ```
 
-The API will be available at `http://localhost:5000`
+The API will be available at `http://localhost:5002`
 
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register a new user
-- `POST /api/auth/login` - Login user
-- `GET /api/auth/me` - Get current user (Protected)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| POST | `/api/auth/register` | Register new user | Public |
+| POST | `/api/auth/login` | Login user | Public |
+| GET | `/api/auth/me` | Get current user | Protected |
 
 ### Profile Management
-- `GET /api/profile/job-seeker` - Get job seeker profile (Job Seeker only)
-- `PUT /api/profile/job-seeker` - Update job seeker profile (Job Seeker only)
-- `GET /api/profile/employer` - Get employer profile (Employer only)
-- `PUT /api/profile/employer` - Update employer profile (Employer only)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/api/profile/job-seeker` | Get job seeker profile | Job Seeker |
+| PUT | `/api/profile/job-seeker` | Update job seeker profile | Job Seeker |
+| GET | `/api/profile/employer` | Get employer profile | Employer |
+| PUT | `/api/profile/employer` | Update employer profile | Employer |
 
 ### Jobs
-- `GET /api/jobs` - Get all jobs with filters (Public)
-- `GET /api/jobs/:id` - Get job by ID (Public)
-- `POST /api/jobs` - Create a new job (Employer only)
-- `GET /api/jobs/employer/my-jobs` - Get employer's jobs (Employer only)
-- `PUT /api/jobs/:id` - Update a job (Employer only)
-- `DELETE /api/jobs/:id` - Delete a job (Employer only)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/api/jobs` | Get all jobs (with filters) | Public |
+| GET | `/api/jobs/:id` | Get job by ID | Public |
+| POST | `/api/jobs` | Create new job | Employer |
+| GET | `/api/jobs/employer/my-jobs` | Get employer's jobs | Employer |
+| PUT | `/api/jobs/:id` | Update job | Employer |
+| DELETE | `/api/jobs/:id` | Delete job | Employer |
 
 ### Applications
-- `POST /api/applications/apply` - Apply for a job (Job Seeker only)
-- `GET /api/applications/my-applications` - Get user's applications (Job Seeker only)
-- `DELETE /api/applications/:id` - Withdraw application (Job Seeker only)
-- `GET /api/applications/job/:jobId` - Get applications for a job (Employer only)
-- `PUT /api/applications/:id/status` - Update application status (Employer only)
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| POST | `/api/applications/apply` | Apply for a job | Job Seeker |
+| GET | `/api/applications/my-applications` | Get user's applications | Job Seeker |
+| DELETE | `/api/applications/:id` | Withdraw application | Job Seeker |
+| GET | `/api/applications/job/:jobId` | Get job applications | Employer |
+| PUT | `/api/applications/:id/status` | Update application status | Employer |
 
-## Database Schema
+### Dashboard
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/api/dashboard/job-seeker` | Job seeker dashboard | Job Seeker |
+| GET | `/api/dashboard/employer` | Employer dashboard | Employer |
 
-### Users
-- id (Primary Key)
-- email (Unique)
-- password (Hashed)
-- role (job_seeker | employer)
-- isActive
-- timestamps
-
-### Job Seeker Profiles
-- id (Primary Key)
-- userId (Foreign Key)
-- firstName, lastName
-- phone, address, city, state, country, zipCode
-- resume (File path)
-- skills, experience, education, bio
-- timestamps
-
-### Employer Profiles
-- id (Primary Key)
-- userId (Foreign Key)
-- companyName, contactPerson
-- phone, companyEmail, website
-- address, city, state, country, zipCode
-- description, industry, companySize
-- timestamps
-
-### Jobs
-- id (Primary Key)
-- employerId (Foreign Key)
-- title, description
-- qualifications, responsibilities
-- jobType, location
-- salaryMin, salaryMax, salaryPeriod
-- experienceLevel, skills, benefits
-- status (active | closed | draft)
-- applicationDeadline
-- timestamps
-
-### Applications
-- id (Primary Key)
-- jobId (Foreign Key)
-- jobSeekerId (Foreign Key)
-- coverLetter
-- status (pending | reviewed | shortlisted | rejected | accepted)
-- notes
-- timestamps
+### Statistics
+| Method | Endpoint | Description | Access |
+|--------|----------|-------------|--------|
+| GET | `/api/stats` | Get platform statistics | Public |
 
 ## Technologies Used
 
-- Node.js
-- Express.js
-- Sequelize ORM
-- MySQL
-- JWT for authentication
-- bcryptjs for password hashing
-- Multer for file uploads
-- Morgan for logging
-- CORS
+- **Runtime**: Node.js
+- **Framework**: Express.js
+- **Database**: MySQL with mysql2 driver
+- **Authentication**: JWT (jsonwebtoken)
+- **Password Hashing**: bcryptjs
+- **File Upload**: Multer
+- **Security**: Helmet, express-rate-limit
+- **Logging**: Morgan
+- **CORS**: cors middleware
 
 ## License
 

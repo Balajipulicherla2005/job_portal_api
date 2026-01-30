@@ -61,10 +61,19 @@ const Job = sequelize.define('jobs', {
     allowNull: true,
     get() {
       const value = this.getDataValue('skills');
-      return value ? JSON.parse(value) : [];
+      if (!value) return [];
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        return value;
+      }
     },
     set(value) {
-      this.setDataValue('skills', JSON.stringify(value));
+      if (Array.isArray(value)) {
+        this.setDataValue('skills', JSON.stringify(value));
+      } else {
+        this.setDataValue('skills', value);
+      }
     }
   },
   benefits: {

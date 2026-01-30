@@ -1,4 +1,4 @@
-const { Application, Job, User, JobSeekerProfile } = require('../models');
+const { Application, Job, User, JobSeekerProfile, EmployerProfile } = require('../models');
 const { notifyApplicationStatusChange, notifyNewApplication } = require('../utils/notificationHelper');
 
 // @desc    Submit job application
@@ -131,7 +131,7 @@ const getMyApplications = async (req, res) => {
               attributes: ['id', 'email'],
               include: [
                 {
-                  model: require('../models').EmployerProfile,
+                  model: EmployerProfile,
                   as: 'employerProfile',
                   attributes: ['companyName', 'location']
                 }
@@ -174,7 +174,7 @@ const getApplicationById = async (req, res) => {
               attributes: ['id', 'email'],
               include: [
                 {
-                  model: require('../models').EmployerProfile,
+                  model: EmployerProfile,
                   as: 'employerProfile'
                 }
               ]
@@ -203,7 +203,7 @@ const getApplicationById = async (req, res) => {
     }
 
     // Check authorization: job seeker who applied or employer who owns the job
-    const isJobSeeker = req.user.role === 'jobseeker' && application.jobSeekerId === req.user.id;
+    const isJobSeeker = (req.user.role === 'jobseeker' || req.user.role === 'job_seeker') && application.jobSeekerId === req.user.id;
     const isEmployer = req.user.role === 'employer' && application.job.employerId === req.user.id;
 
     if (!isJobSeeker && !isEmployer) {
@@ -439,7 +439,7 @@ const getEmployerApplications = async (req, res) => {
 
     const jobIds = jobs.map(job => job.id);
 
-    const where = { jobId: jobIds };
+    const where = { jobId: jobIds.length > 0 ? jobIds : [0] };
     if (status) {
       where.status = status;
     }

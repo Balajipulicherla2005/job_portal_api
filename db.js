@@ -1,43 +1,50 @@
 const mysql = require("mysql2");
+const fs = require("fs");
 require("dotenv").config();
 
-// const db = mysql.createConnection({
-//   host: process.env.DB_HOST,
-//   user: process.env.DB_USER,
-//   password: process.env.DB_PASSWORD || "Root@123",
-//   database: process.env.DB_NAME,
-// });
-
-const db = mysql.createPool({
+// Create connection pool with SSL for Aiven Cloud
+const poolConfig = {
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  ssl: {
-    ca: fs.readFileSync('./aiven-certs/ca.pem'),
-    rejectUnauthorized: true
-  },
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
-});
+};
 
-
-// Connect to database
-db.connect((err) => {
-  if (err) {
-    console.error("❌ Database connection failed:", err);
-  } else {
-    console.log("✅ MySQL Database Connected");
+// Add SSL if enabled
+if (process.env.DB_SSL === 'true') {
+  const certPath = './aiven-certs/ca.pem';
+  if (fs.existsSync(certPath)) {
+    poolConfig.ssl = {
+      ca: fs.readFileSync(certPath),
+      rejectUnauthorized: true
+    };
   }
-});
+}
 
-module.exports = db;
+const pool = mysql.createPool(poolConfig);
 
-// db.connect(err => {
-//   if (err) throw err;
-//   console.log("MySQL Connected");
-// });
+// Get promise-based pool for async/await support
+const promisePool = pool.promise();
 
-// module.exports = db;
+// Test connection function
+const testConnection = async () => {
+  try {
+    const [rows] = await promisePool.query('SELECT 1');
+    console.log("✅ MySQL Database Connected Successfully");
+    return true;
+  } catch (err) {
+    console.error("❌ Database connection failed:", err.message);
+    throw err;
+  }
+};
+
+// Export both pool versions
+module.exports = {
+  pool,
+  promisePool,
+  testConnection
+};

@@ -65,7 +65,7 @@ const register = async (req, res) => {
         fullName,
         phone: phone || null
       });
-    } else if (role === 'employer') {
+    } else if (normalizedRole === 'employer') {
       // Create employer profile
       await EmployerProfile.create({
         userId: user.id,

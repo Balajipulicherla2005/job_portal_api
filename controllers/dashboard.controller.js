@@ -1,5 +1,6 @@
 const { User, Job, Application, JobSeekerProfile, EmployerProfile } = require('../models');
 const { Op } = require('sequelize');
+const sequelize = require('sequelize');
 
 // @desc    Get job seeker dashboard statistics
 // @route   GET /api/dashboard/jobseeker
@@ -18,7 +19,7 @@ const getJobSeekerDashboard = async (req, res) => {
       where: { jobSeekerId: userId },
       attributes: [
         'status',
-        [require('sequelize').fn('COUNT', require('sequelize').col('status')), 'count']
+        [sequelize.fn('COUNT', sequelize.col('status')), 'count']
       ],
       group: ['status']
     });
@@ -146,7 +147,7 @@ const getEmployerDashboard = async (req, res) => {
       where: { employerId: userId },
       attributes: [
         'status',
-        [require('sequelize').fn('COUNT', require('sequelize').col('status')), 'count']
+        [sequelize.fn('COUNT', sequelize.col('status')), 'count']
       ],
       group: ['status']
     });
@@ -177,7 +178,7 @@ const getEmployerDashboard = async (req, res) => {
       where: { jobId: jobIds.length > 0 ? jobIds : [0] },
       attributes: [
         'status',
-        [require('sequelize').fn('COUNT', require('sequelize').col('status')), 'count']
+        [sequelize.fn('COUNT', sequelize.col('status')), 'count']
       ],
       group: ['status']
     });

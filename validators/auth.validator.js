@@ -9,7 +9,7 @@ const registerSchema = Joi.object({
     'string.min': 'Password must be at least 6 characters',
     'any.required': 'Password is required'
   }),
-  role: Joi.string().valid('jobseeker', 'employer').required().messages({
+  role: Joi.string().valid('jobseeker', 'job_seeker', 'employer').required().messages({
     'any.only': 'Role must be either jobseeker or employer',
     'any.required': 'Role is required'
   }),

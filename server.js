@@ -4,7 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { testConnection, sequelize } = require('./config/database');
+const { testConnection } = require('./config/database');
 const { syncDatabase } = require('./models');
 
 const app = express();
@@ -53,7 +53,9 @@ app.use('/uploads', express.static('uploads'));
 const initializeDatabase = async () => {
   try {
     await testConnection();
-    // await syncDatabase({ alter: true }); // Use alter: true to update existing tables
+    // Sync database models - use alter: true to update existing tables
+    // Use force: true only in development to recreate tables (CAUTION: drops data!)
+    await syncDatabase({ alter: true });
     console.log('✓ Database initialized successfully');
   } catch (error) {
     console.error('✗ Database initialization failed:', error);

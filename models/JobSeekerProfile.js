@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const JobSeekerProfile = sequelize.define('job_seeker_profiles', {
+const JobSeekerProfile = sequelize.define('jobseeker_profiles', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -19,7 +19,7 @@ const JobSeekerProfile = sequelize.define('job_seeker_profiles', {
   },
   fullName: {
     type: DataTypes.STRING(255),
-    allowNull: false
+    allowNull: true
   },
   phone: {
     type: DataTypes.STRING(20),
@@ -34,10 +34,19 @@ const JobSeekerProfile = sequelize.define('job_seeker_profiles', {
     allowNull: true,
     get() {
       const value = this.getDataValue('skills');
-      return value ? JSON.parse(value) : [];
+      if (!value) return [];
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        return value;
+      }
     },
     set(value) {
-      this.setDataValue('skills', JSON.stringify(value));
+      if (Array.isArray(value)) {
+        this.setDataValue('skills', JSON.stringify(value));
+      } else {
+        this.setDataValue('skills', value);
+      }
     }
   },
   experience: {
