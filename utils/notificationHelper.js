@@ -44,17 +44,27 @@ const notifyApplicationStatusChange = async (application, oldStatus, newStatus) 
 
 // Create notification for new application (employer)
 const notifyNewApplication = async (application, employerId) => {
-  const title = 'New Application Received';
-  const message = `${application.jobSeeker.jobSeekerProfile.fullName} has applied for "${application.job.title}"`;
+  try {
+    const title = 'New Application Received';
+    // Safely access nested properties
+    const applicantName = application?.jobSeeker?.jobSeekerProfile?.fullName || 
+                          application?.jobSeeker?.email || 
+                          'A candidate';
+    const jobTitle = application?.job?.title || 'your job posting';
+    const message = `${applicantName} has applied for "${jobTitle}"`;
 
-  return await createNotification({
-    userId: employerId,
-    title,
-    message,
-    type: 'new_application',
-    relatedId: application.id,
-    relatedType: 'application'
-  });
+    return await createNotification({
+      userId: employerId,
+      title,
+      message,
+      type: 'new_application',
+      relatedId: application.id,
+      relatedType: 'application'
+    });
+  } catch (error) {
+    console.error('Error in notifyNewApplication:', error);
+    return null;
+  }
 };
 
 module.exports = {

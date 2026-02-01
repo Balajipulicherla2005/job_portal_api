@@ -86,8 +86,13 @@ const submitApplication = async (req, res) => {
       ]
     });
 
-    // Create notification for employer about new application
-    await notifyNewApplication(completeApplication, job.employerId);
+    // Create notification for employer about new application (non-blocking)
+    try {
+      await notifyNewApplication(completeApplication, job.employerId);
+    } catch (notificationError) {
+      console.error('Failed to send notification:', notificationError);
+      // Don't fail the application submission if notification fails
+    }
 
     res.status(201).json({
       success: true,
