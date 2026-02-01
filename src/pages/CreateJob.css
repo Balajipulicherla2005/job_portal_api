@@ -1,0 +1,48 @@
+/* Create Job Page specific styles - extends Jobs.css */
+.create-job-page .form-section:last-of-type {
+  margin-bottom: 1rem;
+}
+
+.create-job-container .page-title {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Enhanced form styling */
+.job-form .form-group input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.job-form .form-group input[type="number"]::-webkit-outer-spin-button,
+.job-form .form-group input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.job-form .form-group input[type="date"] {
+  cursor: pointer;
+}
+
+/* Success state for form */
+.form-success {
+  padding: 1rem;
+  background: #d4edda;
+  border: 2px solid #c3e6cb;
+  border-radius: 8px;
+  color: #155724;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+/* Error state for form */
+.form-error {
+  padding: 1rem;
+  background: #f8d7da;
+  border: 2px solid #f5c6cb;
+  border-radius: 8px;
+  color: #721c24;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
